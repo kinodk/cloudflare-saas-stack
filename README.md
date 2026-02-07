@@ -44,7 +44,7 @@ Supermemory now has 20k+ users and it runs on $5/month. safe to say, it's _very_
    This single command will:
    - Prompt you for your project name (used to generate all resource names)
    - Create Cloudflare resources (D1 database, R2 bucket, optional KV namespace)
-   - Build your `wrangler.toml` configuration file automatically
+   - Build your `wrangler.json` configuration file automatically
    - Configure authentication (Google OAuth)
    - Generate and apply database migrations
    - Optionally deploy secrets to production
@@ -67,14 +67,14 @@ When you run `bun run setup`, it:
    - Database: `my-saas-app-db`
    - Bucket: `my-saas-app-bucket`
 3. Creates these resources in Cloudflare
-4. **Builds your `wrangler.toml` file** from scratch with all the correct values
+4. **Builds your `wrangler.json` file** from scratch with all the correct values
 5. Updates `package.json` with your database name
 6. Sets up authentication credentials in `.dev.vars`
 7. Runs database migrations
 
 After setup completes, your configuration files are ready to use with no manual editing required!
 
-**Note**: The repository doesn't include a `wrangler.toml` file (it's in `.gitignore`). This means you can run `wrangler login` without any issues before running setup. The setup script will create your personalized `wrangler.toml` automatically.
+**Note**: The setup script creates a personalized `wrangler.json` file automatically.
 
 **Pro Tip**: If you choose to deploy secrets during setup, you'll be prompted to also build and deploy your worker immediately. This means you can go from clone to deployed in just one command! 🚀
 
@@ -112,7 +112,7 @@ Your application uses these secrets from `.dev.vars`:
 - `AUTH_SECRET`: Secure random string for auth (auto-generated during setup)
 - `BETTER_AUTH_SECRET`: Another secure random string (auto-generated during setup)
 
-These secrets are stored securely in Cloudflare Workers and are not visible in your `wrangler.toml` file.
+These secrets are stored securely in Cloudflare Workers and are not visible in your `wrangler.json` file.
 
 For a detailed deployment guide, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
@@ -207,5 +207,4 @@ If you prefer manual setup:
 - Cost-effective scaling (e.g., $5/month for multiple high-traffic projects)
 
 Just change your Cloudflare account ID in the project settings, and you're good to go!
-
 

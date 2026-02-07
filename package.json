@@ -1,5 +1,5 @@
 {
-  "name": "{{projectName}}",
+  "name": "cloudflare-saas-template",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,8 +15,8 @@
     "deploy": "bun db:migrate:remote && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply testing-with-worker-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply testing-with-worker-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply {{dbName}} --local",
+    "db:migrate:remote": "wrangler d1 migrations apply {{dbName}} --remote",
     "db:migrate:dev": "drizzle-kit migrate",
     "db:migrate:prod": "NODE_ENV=production drizzle-kit migrate",
     "db:studio:dev": "drizzle-kit studio",
@@ -79,7 +79,6 @@
     "@clack/prompts": "^0.7.0",
     "@cloudflare/workers-types": "^4.20240903.0",
     "@faker-js/faker": "^10.1.0",
-    "@iarna/toml": "^2.2.5",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",
     "@types/react": "^19.2.0",

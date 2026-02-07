@@ -12,7 +12,6 @@ import {
   confirm,
   cancel,
 } from "@clack/prompts";
-import { default as toml } from "@iarna/toml";
 
 function sanitizeResourceName(name: string): string {
   return name
@@ -50,39 +49,19 @@ function generateSecureRandomString(length: number): string {
     .slice(0, length);
 }
 
-function replaceHandlebarsInFile(
-  filePath: string,
-  replacements: Record<string, string>
-) {
-  if (!fs.existsSync(filePath)) {
-    console.error(`\x1b[31mFile not found: ${filePath}\x1b[0m`);
-    return;
-  }
-
-  let content = fs.readFileSync(filePath, "utf-8");
-
-  for (const [key, value] of Object.entries(replacements)) {
-    const regex = new RegExp(`{{${key}}}`, "g");
-    content = content.replace(regex, value);
-  }
-
-  fs.writeFileSync(filePath, content);
-  console.log(`\x1b[32m✓ Updated ${path.basename(filePath)}\x1b[0m`);
-}
-
-function createWranglerToml(
+function createWranglerConfig(
   projectName: string,
   dbName: string,
   dbId: string,
   bucketName: string,
-  googleId: string,
-  googleSecret: string
+  workflowName: string
 ) {
+  const wranglerJsonPath = path.join(__dirname, "..", "wrangler.json");
   const wranglerTomlPath = path.join(__dirname, "..", "wrangler.toml");
 
-  const tomlConfig = {
+  const wranglerConfig = {
     name: projectName,
-    main: ".open-next/worker.js",
+    main: "worker.ts",
     compatibility_date: "2025-03-25",
     compatibility_flags: ["nodejs_compat"],
     assets: {
@@ -106,6 +85,13 @@ function createWranglerToml(
         bucket_name: bucketName,
       },
     ],
+    workflows: [
+      {
+        binding: "EXAMPLE_WORKFLOW",
+        name: workflowName,
+        class_name: "ExampleWorkflow",
+      },
+    ],
     ai: {
       binding: "AI",
     },
@@ -119,21 +105,31 @@ function createWranglerToml(
     },
   };
 
-  let secretsSection =
-    "# [secrets]\n" +
-    "# BETTER_AUTH_SECRET\n" +
-    "# INNGEST_EVENT_KEY\n" +
-    "# INNGEST_SIGNING_KEY\n";
+  fs.writeFileSync(wranglerJsonPath, JSON.stringify(wranglerConfig, null, 2));
+  console.log("\x1b[32m✓ Created wrangler.json\x1b[0m");
 
-  // Only add Google OAuth secrets if they were provided
-  if (googleId && googleSecret) {
-    secretsSection += "# AUTH_GOOGLE_ID\n" + "# AUTH_GOOGLE_SECRET\n";
+  // Remove wrangler.toml so Wrangler consistently uses the generated JSON config.
+  if (fs.existsSync(wranglerTomlPath)) {
+    fs.unlinkSync(wranglerTomlPath);
+    console.log("\x1b[32m✓ Removed stale wrangler.toml\x1b[0m");
+  }
+}
+
+function updatePackageJson(projectName: string, dbName: string) {
+  const packageJsonPath = path.join(__dirname, "..", "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    console.error(`\x1b[31mFile not found: ${packageJsonPath}\x1b[0m`);
+    return;
   }
 
-  const tomlContent =
-    secretsSection + "\n" + toml.stringify(tomlConfig as toml.JsonMap);
-  fs.writeFileSync(wranglerTomlPath, tomlContent);
-  console.log("\x1b[32m✓ Created wrangler.toml\x1b[0m");
+  let content = fs.readFileSync(packageJsonPath, "utf-8");
+
+  // Replace template name and placeholders
+  content = content.replace(/cloudflare-saas-template/g, projectName);
+  content = content.replace(/\{\{dbName\}\}/g, dbName);
+
+  fs.writeFileSync(packageJsonPath, content);
+  console.log("\x1b[32m✓ Updated package.json\x1b[0m");
 }
 
 function extractAccountDetails(output: string): { name: string; id: string }[] {
@@ -492,11 +488,13 @@ async function main() {
   const dbName = `${projectName}-db`;
   const bucketName = `${projectName}-bucket`;
   const kvName = `${projectName}-kv`;
+  const workflowName = `${projectName}-example-workflow`;
 
   console.log("\n\x1b[33mResource names:\x1b[0m");
   console.log(`  • Project: ${projectName}`);
   console.log(`  • Database: ${dbName}`);
   console.log(`  • Bucket: ${bucketName}`);
+  console.log(`  • Workflow: ${workflowName}`);
 
   const shouldContinue = await confirm({
     message: "Continue with these names?",
@@ -562,23 +560,9 @@ async function main() {
   // Step 4: Create configuration files
   console.log("\n\x1b[36m📝 Step 4: Creating Configuration Files\x1b[0m");
 
-  // Create wrangler.toml from scratch
-  createWranglerToml(
-    projectName,
-    dbName,
-    dbId,
-    bucketName,
-    googleId,
-    googleSecret
-  );
-
-  // Update package.json with database name
-  const packageJsonPath = path.join(__dirname, "..", "package.json");
-  const replacements = {
-    projectName: sanitizeResourceName(projectName),
-    dbName,
-  };
-  replaceHandlebarsInFile(packageJsonPath, replacements);
+  // Create wrangler.json from scratch so wrangler dev uses the generated resources.
+  createWranglerConfig(projectName, dbName, dbId, bucketName, workflowName);
+  updatePackageJson(projectName, dbName);
 
   // Step 5: Run database migrations
   await runDatabaseMigrations(dbName);

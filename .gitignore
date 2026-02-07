@@ -45,5 +45,7 @@ next-env.d.ts
 .wrangler
 .dev.vars
 .temp-*
+wrangler.json
+wrangler.toml
 
 .open-next
