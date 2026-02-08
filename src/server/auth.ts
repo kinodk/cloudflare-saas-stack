@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { getDb } from "./db";
 import { env } from "@/env.mjs";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import * as schema from "./db/schema";
 
 export async function configureAuth(database: D1Database) {
   const betterAuthConfig: Omit<BetterAuthOptions, "database"> = {
@@ -41,7 +42,10 @@ export async function configureAuth(database: D1Database) {
 
   if (env.IS_CLI) {
     return betterAuth({
-      database: drizzleAdapter({} as D1Database, { provider: "sqlite" }),
+      database: drizzleAdapter({} as D1Database, {
+        provider: "sqlite",
+        schema,
+      }),
       ...betterAuthConfig,
     });
   }
@@ -49,8 +53,9 @@ export async function configureAuth(database: D1Database) {
   const db = await getDb(database);
 
   return betterAuth({
-    database: drizzleAdapter(database ?? db, {
+    database: drizzleAdapter(db, {
       provider: "sqlite",
+      schema,
     }),
     ...betterAuthConfig,
   });
