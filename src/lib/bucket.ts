@@ -12,6 +12,33 @@ interface UploadOptions {
   contentType?: string;
 }
 
+type UploadBody = Uint8Array | ArrayBuffer | string;
+
+function normalizeUploadBody(
+  file: Buffer | Uint8Array | ArrayBuffer | string | File
+): Promise<UploadBody> | UploadBody {
+  if (file instanceof File) {
+    // In local dev, passing a Node Buffer through the Miniflare proxy can fail
+    // to serialize. ArrayBuffer is safe in both local and worker runtimes.
+    return file.arrayBuffer();
+  }
+
+  if (file instanceof ArrayBuffer) {
+    return file;
+  }
+
+  if (typeof file === "string") {
+    return file;
+  }
+
+  if (file instanceof Uint8Array) {
+    // Normalize Node Buffer to a plain Uint8Array view.
+    return new Uint8Array(file.buffer, file.byteOffset, file.byteLength);
+  }
+
+  throw new TypeError("Unsupported upload payload type");
+}
+
 /**
  * Uploads a file to the R2 bucket
  * @param file - The file data as Buffer, Uint8Array, or string
@@ -19,7 +46,7 @@ interface UploadOptions {
  * @returns The key (path) of the uploaded file in R2
  */
 export async function uploadToR2(
-  file: Buffer | Uint8Array | string | File,
+  file: Buffer | Uint8Array | ArrayBuffer | string | File,
   options: UploadOptions = {}
 ): Promise<string> {
   try {
@@ -31,15 +58,11 @@ export async function uploadToR2(
     // Generate a unique key if not provided
     const key = options.key ?? `uploads/${Date.now()}-${crypto.randomUUID()}`;
 
-    // Handle File object
-    let data: Buffer | Uint8Array | string;
+    // Normalize payload so local Miniflare and real worker runtimes both accept it.
+    const data = await normalizeUploadBody(file);
     let contentType: string | undefined = options.contentType;
-
-    if (file instanceof File) {
-      data = Buffer.from(await file.arrayBuffer());
+    if (file instanceof File && file.type) {
       contentType = contentType ?? file.type;
-    } else {
-      data = file;
     }
 
     // Upload to R2
