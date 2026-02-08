@@ -13,7 +13,7 @@ export default async function DashboardPage() {
 
       <div className="flex gap-3 mt-4">
         <SignOutButton />
-        <Link href="/dashboard/upload">
+        <Link href="/home/upload">
           <Button variant="outline">Try R2 Upload</Button>
         </Link>
       </div>
