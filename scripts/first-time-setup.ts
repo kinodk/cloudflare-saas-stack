@@ -376,7 +376,11 @@ function createDevVarsFile(
   console.log("\x1b[32m✓ Created .dev.vars file\x1b[0m");
 }
 
-function createEnvLocalFile() {
+function createEnvLocalFile(
+  betterAuthSecret: string,
+  googleId: string,
+  googleSecret: string
+) {
   const envLocalPath = path.join(__dirname, "..", ".env.local");
 
   if (fs.existsSync(envLocalPath)) {
@@ -384,15 +388,29 @@ function createEnvLocalFile() {
     return;
   }
 
-  const content = [
+  const lines = [
     `# Next.js Public Environment Variables`,
     `# These are accessible in the browser via process.env.NEXT_PUBLIC_*`,
     `NEXT_PUBLIC_AUTH_URL=http://localhost:3000`,
     ``,
     `# For production, update NEXT_PUBLIC_AUTH_URL to your actual domain`,
     `# Example: NEXT_PUBLIC_AUTH_URL=https://your-domain.com`,
-    "",
-  ].join("\n");
+    ``,
+    `# Server-side Environment Variables (not accessible in browser)`,
+    `BETTER_AUTH_SECRET=${betterAuthSecret}`,
+  ];
+
+  // Add optional Google OAuth credentials if provided
+  if (googleId) {
+    lines.push(`AUTH_GOOGLE_ID=${googleId}`);
+  }
+  if (googleSecret) {
+    lines.push(`AUTH_GOOGLE_SECRET=${googleSecret}`);
+  }
+
+  lines.push(""); // Trailing newline
+
+  const content = lines.join("\n");
 
   fs.writeFileSync(envLocalPath, content);
   console.log("\x1b[32m✓ Created .env.local file\x1b[0m");
@@ -555,7 +573,7 @@ async function main() {
     inngestEventKey,
     inngestSigningKey
   );
-  createEnvLocalFile();
+  createEnvLocalFile(betterAuthSecret, googleId, googleSecret);
 
   // Step 4: Create configuration files
   console.log("\n\x1b[36m📝 Step 4: Creating Configuration Files\x1b[0m");
