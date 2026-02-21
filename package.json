@@ -78,7 +78,6 @@
   },
   "devDependencies": {
     "@clack/prompts": "^0.7.0",
-    "@cloudflare/workers-types": "^4.20240903.0",
     "@faker-js/faker": "^10.1.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",
