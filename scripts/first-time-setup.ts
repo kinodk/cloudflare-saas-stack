@@ -54,7 +54,8 @@ function createWranglerConfig(
   dbName: string,
   dbId: string,
   bucketName: string,
-  workflowName: string
+  workflowName: string,
+  resendFromEmail: string
 ) {
   const wranglerJsonPath = path.join(__dirname, "..", "wrangler.json");
   const wranglerTomlPath = path.join(__dirname, "..", "wrangler.toml");
@@ -71,6 +72,7 @@ function createWranglerConfig(
     placement: {
       mode: "smart",
     },
+    ...(resendFromEmail ? { vars: { RESEND_FROM_EMAIL: resendFromEmail } } : {}),
     d1_databases: [
       {
         binding: "DATABASE",
@@ -291,6 +293,8 @@ async function setupAuthentication(): Promise<{
   betterAuthSecret: string;
   inngestEventKey: string;
   inngestSigningKey: string;
+  resendApiKey: string;
+  resendFromEmail: string;
 }> {
   console.log("\n\x1b[36m🔐 Setting up authentication...\x1b[0m");
   console.log(
@@ -332,6 +336,28 @@ async function setupAuthentication(): Promise<{
     console.log("\x1b[33m⚠ Skipping Inngest setup\x1b[0m");
   }
 
+  // Prompt for Resend setup (password reset emails)
+  console.log(
+    "\n\x1b[33mFor Resend (password reset emails), visit: https://resend.com/\x1b[0m"
+  );
+  console.log(
+    "\x1b[33mCreate an account, verify your domain, and paste your API key below (or press Enter to skip).\x1b[0m\n"
+  );
+
+  const resendApiKey = await prompt("Resend API Key (Enter to skip)", "");
+  const resendFromEmail = await prompt(
+    "From email address (e.g. no-reply@yourdomain.com) (Enter to skip)",
+    ""
+  );
+
+  if (resendApiKey && resendFromEmail) {
+    console.log("\x1b[32m✓ Resend credentials provided\x1b[0m");
+  } else if (resendApiKey || resendFromEmail) {
+    console.log("\x1b[33m⚠ Resend setup incomplete — both API key and from address are required\x1b[0m");
+  } else {
+    console.log("\x1b[33m⚠ Skipping Resend setup\x1b[0m");
+  }
+
   return {
     googleId,
     googleSecret,
@@ -339,6 +365,8 @@ async function setupAuthentication(): Promise<{
     betterAuthSecret,
     inngestEventKey,
     inngestSigningKey,
+    resendApiKey,
+    resendFromEmail,
   };
 }
 
@@ -348,12 +376,29 @@ function createDevVarsFile(
   authSecret: string,
   betterAuthSecret: string,
   inngestEventKey: string,
-  inngestSigningKey: string
+  inngestSigningKey: string,
+  resendApiKey: string
 ) {
   const devVarsPath = path.join(__dirname, "..", ".dev.vars");
 
-  if (fs.existsSync(devVarsPath)) {
-    console.log("\x1b[33m⚠ .dev.vars already exists, skipping...\x1b[0m");
+  const existingContent = fs.existsSync(devVarsPath)
+    ? fs.readFileSync(devVarsPath, "utf-8")
+    : "";
+
+  function upsertEnvVar(content: string, key: string, value: string): string {
+    const regex = new RegExp(`^${key}=.*$`, "m");
+    const line = `${key}=${value}`;
+    return regex.test(content) ? content.replace(regex, line) : content + `\n${line}`;
+  }
+
+  if (existingContent) {
+    let updated = existingContent;
+    if (resendApiKey) {
+      updated = upsertEnvVar(updated, "RESEND_API_KEY", resendApiKey);
+    }
+    if (!updated.endsWith("\n")) updated += "\n";
+    fs.writeFileSync(devVarsPath, updated);
+    console.log("\x1b[32m✓ Updated .dev.vars file\x1b[0m");
     return;
   }
 
@@ -367,6 +412,11 @@ function createDevVarsFile(
     `INNGEST_EVENT_KEY=${inngestEventKey}`,
     `INNGEST_SIGNING_KEY=${inngestSigningKey}`,
     ``,
+    ...(resendApiKey ? [
+      `# Resend (password reset emails)`,
+      `RESEND_API_KEY=${resendApiKey}`,
+      ``,
+    ] : []),
     `# Public variables (accessible to Next.js client)`,
     `NEXT_PUBLIC_AUTH_URL=http://localhost:3000`,
     "",
@@ -379,12 +429,32 @@ function createDevVarsFile(
 function createEnvLocalFile(
   betterAuthSecret: string,
   googleId: string,
-  googleSecret: string
+  googleSecret: string,
+  resendApiKey: string,
+  resendFromEmail: string
 ) {
   const envLocalPath = path.join(__dirname, "..", ".env.local");
 
-  if (fs.existsSync(envLocalPath)) {
-    console.log("\x1b[33m⚠ .env.local already exists, skipping...\x1b[0m");
+  const existingContent = fs.existsSync(envLocalPath)
+    ? fs.readFileSync(envLocalPath, "utf-8")
+    : "";
+
+  function upsertEnvVar(content: string, key: string, value: string): string {
+    const regex = new RegExp(`^${key}=.*$`, "m");
+    const line = `${key}=${value}`;
+    return regex.test(content) ? content.replace(regex, line) : content + `\n${line}`;
+  }
+
+  if (existingContent) {
+    // Update only the specific keys that were provided, leaving the rest intact
+    let updated = existingContent;
+    if (resendApiKey && resendFromEmail) {
+      updated = upsertEnvVar(updated, "RESEND_API_KEY", resendApiKey);
+      updated = upsertEnvVar(updated, "RESEND_FROM_EMAIL", resendFromEmail);
+    }
+    if (!updated.endsWith("\n")) updated += "\n";
+    fs.writeFileSync(envLocalPath, updated);
+    console.log("\x1b[32m✓ Updated .env.local file\x1b[0m");
     return;
   }
 
@@ -406,6 +476,12 @@ function createEnvLocalFile(
   }
   if (googleSecret) {
     lines.push(`AUTH_GOOGLE_SECRET=${googleSecret}`);
+  }
+
+  // Add optional Resend credentials if provided (requires both to be functional)
+  if (resendApiKey && resendFromEmail) {
+    lines.push(`RESEND_API_KEY=${resendApiKey}`);
+    lines.push(`RESEND_FROM_EMAIL=${resendFromEmail}`);
   }
 
   lines.push(""); // Trailing newline
@@ -563,6 +639,8 @@ async function main() {
     betterAuthSecret,
     inngestEventKey,
     inngestSigningKey,
+    resendApiKey,
+    resendFromEmail,
   } = await setupAuthentication();
 
   createDevVarsFile(
@@ -571,15 +649,16 @@ async function main() {
     authSecret,
     betterAuthSecret,
     inngestEventKey,
-    inngestSigningKey
+    inngestSigningKey,
+    resendApiKey
   );
-  createEnvLocalFile(betterAuthSecret, googleId, googleSecret);
+  createEnvLocalFile(betterAuthSecret, googleId, googleSecret, resendApiKey, resendFromEmail);
 
   // Step 4: Create configuration files
   console.log("\n\x1b[36m📝 Step 4: Creating Configuration Files\x1b[0m");
 
   // Create wrangler.json from scratch so wrangler dev uses the generated resources.
-  createWranglerConfig(projectName, dbName, dbId, bucketName, workflowName);
+  createWranglerConfig(projectName, dbName, dbId, bucketName, workflowName, resendFromEmail);
   updatePackageJson(projectName, dbName);
 
   // Step 5: Run database migrations
@@ -600,6 +679,7 @@ async function main() {
     await uploadSecret("BETTER_AUTH_SECRET", betterAuthSecret);
     await uploadSecret("INNGEST_EVENT_KEY", inngestEventKey);
     await uploadSecret("INNGEST_SIGNING_KEY", inngestSigningKey);
+    await uploadSecret("RESEND_API_KEY", resendApiKey);
     secretsDeployed = true;
   } else {
     console.log(
