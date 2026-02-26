@@ -600,6 +600,14 @@ async function main() {
     process.exit(0);
   }
 
+  // Remove template remote so users don't accidentally push to the template repo
+  const removeOriginResult = executeCommand("git remote remove origin", true);
+  if (typeof removeOriginResult === "string") {
+    console.log("\x1b[32m✓ Removed template origin remote\x1b[0m");
+  } else {
+    console.log("\x1b[33m⚠ Could not remove 'origin' remote (may not exist)\x1b[0m");
+  }
+
   // Step 2: Create Cloudflare resources
   console.log("\n\x1b[36m☁️  Step 2: Creating Cloudflare Resources\x1b[0m");
 
@@ -736,6 +744,32 @@ async function main() {
       console.log(
         "\x1b[33m⚠ Skipped deployment. You can deploy later with: bun run deploy\x1b[0m"
       );
+    }
+  }
+
+  // Step 7: Optionally squash template git history
+  const squashConfirmation = await text({
+    message: "Type 'squash' to squash template git history into a single 'Initial commit', or press Enter to skip:",
+    placeholder: "",
+  });
+
+  if (squashConfirmation === "squash") {
+    const squashSpinner = spinner();
+    squashSpinner.start("Squashing git history...");
+    const newCommit = executeCommand(
+      `git commit-tree HEAD^{tree} -m "Initial commit"`,
+      true
+    );
+    if (newCommit && typeof newCommit === "string") {
+      const resetResult = executeCommand(`git reset --hard ${newCommit.trim()}`, true);
+      if (typeof resetResult === "string") {
+        squashSpinner.stop("\x1b[32m✓ Git history squashed to a single commit\x1b[0m");
+        console.log("\x1b[33m⚠ If you've already pushed this repo, you'll need to force-push: git push --force\x1b[0m");
+      } else {
+        squashSpinner.stop("\x1b[31m✗ Failed to reset to squashed commit\x1b[0m");
+      }
+    } else {
+      squashSpinner.stop("\x1b[31m✗ Failed to squash git history\x1b[0m");
     }
   }
 
