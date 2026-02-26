@@ -4,9 +4,7 @@ await initOpenNextCloudflareForDev();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["@opennextjs/cloudflare"],
-  },
+  serverExternalPackages: ["@opennextjs/cloudflare"],
 };
 
 export default nextConfig;
